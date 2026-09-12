@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var script = document.currentScript;
+  var script = document.currentScript || document.querySelector("script[data-endpoint]");
   var endpoint = script && script.dataset.endpoint;
   var mounted = false;
 
@@ -92,8 +92,11 @@
     try {
       var response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // text/plain is CORS-safelisted, so browser extensions and stricter
+        // clients cannot strand the submission after an OPTIONS preflight.
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
         body: JSON.stringify(payload),
+        credentials: "omit",
         signal: controller ? controller.signal : undefined,
       });
       var result = await response.json().catch(function () { return {}; });
