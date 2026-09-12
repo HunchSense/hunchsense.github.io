@@ -1,0 +1,49 @@
+.contact-message-field {
+  margin-top: 1rem;
+}
+
+.contact-message-field textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 0.8rem 0.9rem;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.contact-message-field textarea:focus {
+  outline: 2px solid var(--azure);
+  outline-offset: 2px;
+}
+
+.contact-form-trap {
+  position: absolute !important;
+  left: -10000px !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.contact-form-status {
+  min-height: 1.5rem;
+  margin-top: 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.contact-form-status.pending {
+  color: var(--text-2);
+}
+
+.contact-form-status.success {
+  color: #75d9a4;
+}
+
+.contact-form-status.error {
+  color: #ff8c96;
+}

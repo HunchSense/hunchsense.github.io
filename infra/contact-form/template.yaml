@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: HunchSense public website contact form
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: ACM certificate ARN for contact-api.hunchsense.com in this region
+  AllowedOrigins:
+    Type: String
+    Default: https://hunchsense.com,https://www.hunchsense.com,https://hunchsense.github.io
+  RateLimitPerHour:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 20
+
+Resources:
+  ContactRateLimitTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: bucket_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: bucket_key
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Application
+          Value: HunchSenseWebsite
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  ContactFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ContactDelivery
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:UpdateItem
+                Resource: !GetAtt ContactRateLimitTable.Arn
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/hunchsense.com
+                Condition:
+                  ForAllValues:StringEquals:
+                    ses:Recipients:
+                      - chris.ye@hunchsense.com
+                      - shawn.li@hunchsense.com
+
+  ContactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: function/
+      Handler: handler.handler
+      Runtime: python3.12
+      Architectures:
+        - arm64
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt ContactFunctionRole.Arn
+      Environment:
+        Variables:
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          RATE_LIMIT_TABLE: !Ref ContactRateLimitTable
+          RATE_LIMIT_PER_HOUR: !Ref RateLimitPerHour
+          SOURCE_EMAIL: HunchSense Website <website@hunchsense.com>
+          RECIPIENTS: chris.ye@hunchsense.com,shawn.li@hunchsense.com
+      Tags:
+        Application: HunchSenseWebsite
+        ManagedBy: CloudFormation
+
+  ContactFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ContactFunction}
+      RetentionInDays: 30
+
+  ContactApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: hunchsense-website-contact
+      Description: Public contact form API for hunchsense.com
+      ProtocolType: HTTP
+      DisableExecuteApiEndpoint: false
+      CorsConfiguration:
+        AllowOrigins:
+          - https://hunchsense.com
+          - https://www.hunchsense.com
+          - https://hunchsense.github.io
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - content-type
+        MaxAge: 86400
+      Tags:
+        Application: HunchSenseWebsite
+        ManagedBy: CloudFormation
+
+  ContactIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ContactApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ContactFunction.Arn
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 10000
+
+  ContactRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ContactApi
+      RouteKey: POST /contact
+      AuthorizationType: NONE
+      Target: !Sub integrations/${ContactIntegration}
+
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ContactApi
+      RouteKey: GET /contact/health
+      AuthorizationType: NONE
+      Target: !Sub integrations/${ContactIntegration}
+
+  ContactApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RetentionInDays: 14
+
+  ContactStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ContactApi
+      StageName: $default
+      AutoDeploy: true
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: false
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 2
+      AccessLogSettings:
+        DestinationArn: !GetAtt ContactApiLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength"}'
+      Tags:
+        Application: HunchSenseWebsite
+        ManagedBy: CloudFormation
+
+  ContactInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ContactFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ContactApi}/*/*
+
+  ContactDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: contact-api.hunchsense.com
+      DomainNameConfigurations:
+        - CertificateArn: !Ref CertificateArn
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+      Tags:
+        Application: HunchSenseWebsite
+        ManagedBy: CloudFormation
+
+  ContactApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      ApiId: !Ref ContactApi
+      DomainName: !Ref ContactDomain
+      Stage: !Ref ContactStage
+
+Outputs:
+  ContactUrl:
+    Value: https://contact-api.hunchsense.com/contact
+  HealthUrl:
+    Value: https://contact-api.hunchsense.com/contact/health
+  ExecuteApiUrl:
+    Value: !GetAtt ContactApi.ApiEndpoint
+  RegionalDomainName:
+    Value: !GetAtt ContactDomain.RegionalDomainName
