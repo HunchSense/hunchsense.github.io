@@ -20,7 +20,7 @@
     textarea.name = "message";
     textarea.rows = 4;
     textarea.maxLength = 2000;
-    textarea.placeholder = "Which instruments are you using, and what do you need to measure or control?";
+    textarea.placeholder = "Describe your test setup, the hardware on your bench, or how you want to deploy Sense.";
     textarea.required = true;
     field.append(label, textarea);
     actions.before(field);
@@ -64,7 +64,7 @@
       return;
     }
     if (!endpoint) {
-      setStatus(form, "error", "The form is unavailable right now. Email Chris or Shawn instead.");
+      setStatus(form, "error", "The contact form is not configured. Please email the team directly.");
       return;
     }
 
@@ -103,13 +103,13 @@
       if (!response.ok) throw new Error(result.message || "Request could not be delivered.");
       form.reset();
       button.textContent = "Request received";
-      setStatus(form, "success", "Thanks. Chris or Shawn will reply within one business day.");
+      setStatus(form, "success", "Thanks. We will contact you within one business day.");
     } catch (error) {
       button.disabled = false;
-      button.textContent = "Book a demo";
+      button.textContent = "Request a Demo";
       var message = error instanceof Error ? error.message : "";
       if (!message || message === "Failed to fetch" || (error && error.name === "AbortError")) {
-        message = "The form could not send your request. Try again, or email Chris or Shawn directly.";
+        message = "Your request was not sent. Please try again or email the team directly.";
       }
       setStatus(form, "error", message);
     } finally {
