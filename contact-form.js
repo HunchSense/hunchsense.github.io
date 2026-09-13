@@ -20,7 +20,7 @@
     textarea.name = "message";
     textarea.rows = 4;
     textarea.maxLength = 2000;
-    textarea.placeholder = "Tell us about your test setup, hardware, or deployment goals.";
+    textarea.placeholder = "Which instruments are you using, and what do you need to measure or control?";
     textarea.required = true;
     field.append(label, textarea);
     actions.before(field);
@@ -64,7 +64,7 @@
       return;
     }
     if (!endpoint) {
-      setStatus(form, "error", "Contact service is not configured. Please email our team directly.");
+      setStatus(form, "error", "The form is unavailable right now. Email Chris or Shawn instead.");
       return;
     }
 
@@ -73,7 +73,7 @@
     button.disabled = true;
     button.textContent = "Sending...";
     form.setAttribute("aria-busy", "true");
-    setStatus(form, "pending", "Sending your request...");
+    setStatus(form, "pending", "Sending...");
 
     var data = new FormData(form);
     var payload = {
@@ -102,14 +102,14 @@
       var result = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(result.message || "Request could not be delivered.");
       form.reset();
-      button.textContent = "Request Received";
-      setStatus(form, "success", "Thanks. Our team will reach out within one business day.");
+      button.textContent = "Request received";
+      setStatus(form, "success", "Thanks. Chris or Shawn will reply within one business day.");
     } catch (error) {
       button.disabled = false;
-      button.textContent = "Request a Demo";
+      button.textContent = "Book a demo";
       var message = error instanceof Error ? error.message : "";
       if (!message || message === "Failed to fetch" || (error && error.name === "AbortError")) {
-        message = "We could not send your request. Please try again or email our team directly.";
+        message = "The form could not send your request. Try again, or email Chris or Shawn directly.";
       }
       setStatus(form, "error", message);
     } finally {
